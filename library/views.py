@@ -424,29 +424,46 @@ def api_delete_user(request, id):
 @api_view(["POST"])
 def borrow_book(request, book_id):
 
-    if request.method == "POST":
+    try:
+        book = Book.objects.get(id=book_id)
+    except Book.DoesNotExist:
+        return Response(
+            {"error": "Book not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
-        try:
-            book = Book.objects.get(id=book_id)
-        except Book.DoesNotExist:
-            return redirect("home")
+    user_id = request.data.get("user_id")
 
-        user_id = request.POST.get("user_id")
+    if not user_id:
+        return Response(
+            {"error": "User is required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-        if not user_id:
-            return redirect("home")
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response(
+            {"error": "User not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return redirect("home")
+    if not book.available:
+        return Response(
+            {"error": "Book is already borrowed"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-        if book.available:
-            book.available = False
-            book.borrowed_by = user
-            book.save()
+    book.available = False
+    book.borrowed_by = user
+    book.save()
 
-    return redirect("home")
+    return Response(
+        {
+            "message": "Book borrowed successfully"
+        },
+        status=status.HTTP_200_OK
+    )
 
 
 @api_view(["POST"])
@@ -455,11 +472,56 @@ def return_book(request, book_id):
     try:
         book = Book.objects.get(id=book_id)
     except Book.DoesNotExist:
-        return redirect("home")
+        return Response(
+            {"error": "Book not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if book.available:
+        return Response(
+            {"error": "Book is already available"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    book.available = True
+    book.borrowed_by = None
+    book.save()
+
+    return Response(
+        {
+            "message": "Book returned successfully"
+        },
+        status=status.HTTP_200_OK
+    )
+
+from django.shortcuts import get_object_or_404
+
+def borrow_book_page(request, book_id):
+    if request.method == "POST":
+        book = get_object_or_404(Book, id=book_id)
+
+        user_id = request.POST.get("user_id")
+
+        if user_id:
+            try:
+                user = User.objects.get(id=user_id)
+
+                if book.available:
+                    book.available = False
+                    book.borrowed_by = user
+                    book.save()
+
+            except User.DoesNotExist:
+                pass
+
+    return redirect("home")
+
+
+def return_book_page(request, book_id):
+    book = get_object_or_404(Book, id=book_id)
 
     book.available = True
     book.borrowed_by = None
     book.save()
 
     return redirect("home")
-
